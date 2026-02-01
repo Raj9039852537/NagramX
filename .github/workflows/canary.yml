@@ -30,7 +30,7 @@ jobs:
       CCACHE_HARDLINK: "true"
       CCACHE_NOHASHDIR: "true"
       CCACHE_MAXSIZE: "10G"
-      NATIVE_TARGET: "universal"
+      NATIVE_TARGET: "arm64-v8a"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -82,12 +82,14 @@ jobs:
           export BUILD_TIMESTAMP=$(date +%s)
           echo "build_timestamp=$BUILD_TIMESTAMP" >> "$GITHUB_OUTPUT"
           ./gradlew TMessagesProj:assembleStaging
+
+          APK=$(find TMessagesProj/build/outputs/apk -name '*arm64-v8a*.apk')
+          APK=$(dirname $APK)
+          echo "APK=$APK" >> $GITHUB_ENV
       - uses: actions/upload-artifact@v4
         with:
           name: Staging
-          path: |
-            TMessagesProj/build/outputs/apk/staging/*-arm64-v8a.apk
-            TMessagesProj/build/outputs/apk/staging/*-universal.apk
+          path: ${{ env.APK }}
   upload:
     name: Upload canary
     if: github.event.inputs.upload != 'y' && !contains(github.event.head_commit.message, '[skip upload]')
@@ -202,13 +204,13 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
       - name: Send to Telegram
         env:
-          APP_ID: ${{ secrets.APP_ID }}
-          APP_HASH: ${{ secrets.APP_HASH }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
           COMMIT_ID: ${{ github.event.head_commit.id }}
           COMMIT_URL: ${{ github.event.head_commit.url }}
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
           BUILD_TIMESTAMP: ${{ needs.build.outputs.build_timestamp }}
           AI_SUMMARY: ${{ steps.prepare.outputs.ai_summary }}
         run: |
-          python -m pip install -r Tools/scripts/requirements.txt
-          python Tools/scripts/upload.py ${{ secrets.HELPER_BOT_TOKEN }} ${{ secrets.HELPER_BOT_CANARY_TARGET }} test ${{ secrets.HELPER_BOT_CANARY_TARGET }}
+          python -m pip install requests
+          python Tools/scripts/upload2.py
